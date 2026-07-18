@@ -1,0 +1,1435 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AG Personnalité · Painel de Produtividade</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          navy: { DEFAULT:'#0B2447', deep:'#081A33', 700:'#0B2447', 800:'#081A33', 900:'#050f1f' },
+          accent: { DEFAULT:'#1E5FD9', light:'#6FA8F5' },
+        },
+        fontFamily: { sans: ['Arial','Helvetica','sans-serif'] }
+      }
+    }
+  }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<style>
+  :root{
+    --navy:#0B2447; --navy-deep:#081A33; --accent:#1E5FD9; --accent-light:#6FA8F5;
+    --bg-light:#F3F5F8; --card-light:#FFFFFF; --border-light:#E3E7EE;
+    --bg-dark:#0B1220; --card-dark:#111B30; --border-dark:#233047;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{ font-family: Arial, Helvetica, sans-serif; background:var(--bg-light); transition: background .25s ease; }
+  html.dark body{ background:var(--bg-dark); color:#E7ECF5; }
+
+  ::-webkit-scrollbar{ width:9px; height:9px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  ::-webkit-scrollbar-thumb{ background:#1E5FD966; border-radius:8px; }
+  ::-webkit-scrollbar-thumb:hover{ background:#1E5FD9aa; }
+
+  .card{ background:var(--card-light); border:1px solid var(--border-light); border-radius:14px; }
+  html.dark .card{ background:var(--card-dark); border-color:var(--border-dark); }
+
+  .accent-underline{ position:relative; }
+  .accent-underline::after{ content:''; position:absolute; left:0; bottom:-6px; width:38px; height:3px; background:linear-gradient(90deg,var(--accent),var(--accent-light)); border-radius:3px; }
+
+  .nav-item{ transition: all .18s ease; border-left:3px solid transparent; }
+  .nav-item:hover{ background:rgba(30,95,217,0.06); }
+  .nav-item.active{ background:rgba(30,95,217,0.10); border-left-color:var(--accent); color:var(--accent); }
+  html.dark .nav-item.active{ color:var(--accent-light); }
+
+  .btn-accent{ background:linear-gradient(135deg,#1E5FD9,#144FB8); color:#fff; font-weight:700; }
+  .btn-accent:hover{ filter:brightness(1.1); }
+  .btn-navy{ background:linear-gradient(135deg,#0B2447,#081A33); color:#fff; }
+  .btn-navy:hover{ filter:brightness(1.15); }
+
+  .kpi-icon{ width:42px; height:42px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:20px; }
+
+  .fade-in{ animation: fadeIn .35s ease both; }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+
+  .login-bg{
+    background:
+      radial-gradient(1200px 500px at 15% 0%, rgba(30,95,217,0.18), transparent 60%),
+      radial-gradient(900px 600px at 100% 100%, rgba(111,168,245,0.14), transparent 55%),
+      linear-gradient(135deg, var(--navy-deep), var(--navy) 55%, #0e2c56);
+  }
+
+  input[type=text], input[type=password], input[type=number], input[type=date], select{
+    background:#fff; border:1px solid #D7DCE5; border-radius:9px; padding:9px 12px; font-size:14px; width:100%;
+    outline:none; transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  input:focus, select:focus{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(30,95,217,0.18); }
+  html.dark input[type=text], html.dark input[type=password], html.dark input[type=number], html.dark input[type=date], html.dark select{
+    background:#0E1A2E; border-color:#233047; color:#E7ECF5;
+  }
+  label{ font-size:12.5px; font-weight:600; color:#54607A; }
+  html.dark label{ color:#93A2BE; }
+
+  table.data-table th{ position:sticky; top:0; z-index:1; }
+  .badge{ font-size:11px; font-weight:700; padding:2px 9px; border-radius:999px; }
+  .row-hover:hover{ background:rgba(30,95,217,0.05); }
+
+  #toast-wrap{ position:fixed; top:16px; right:16px; z-index:200; display:flex; flex-direction:column; gap:8px; }
+  .toast{ min-width:260px; max-width:340px; padding:12px 14px; border-radius:10px; color:#fff; font-size:13.5px; box-shadow:0 8px 24px rgba(0,0,0,.18); animation: toastIn .25s ease both; }
+  @keyframes toastIn{ from{opacity:0; transform:translateX(30px);} to{opacity:1; transform:translateX(0);} }
+
+  @media print{
+    body *{ visibility:hidden; }
+    #print-area, #print-area *{ visibility:visible; }
+    #print-area{ position:absolute; left:0; top:0; width:100%; }
+  }
+
+  .scrollx{ overflow-x:auto; }
+  .sidebar-mobile{ transform:translateX(-100%); transition:transform .25s ease; }
+  .sidebar-mobile.open{ transform:translateX(0); }
+
+</style>
+</head>
+<body class="text-[13.5px]">
+
+<div id="toast-wrap"></div>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="screen-login" class="min-h-screen login-bg flex items-center justify-center px-4">
+  <div class="w-full max-w-4xl grid md:grid-cols-2 rounded-2xl overflow-hidden shadow-2xl">
+    <div class="hidden md:flex flex-col justify-between p-10 bg-navy-deep text-white relative overflow-hidden">
+      <div class="absolute -right-10 -top-10 w-56 h-56 rounded-full bg-accent/10"></div>
+      <div class="absolute -right-4 top-24 w-24 h-24 rounded-full border border-accent/30"></div>
+      <div>
+        <div class="w-14 h-14 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-xl font-bold mb-4">AG</div>
+        <div class="w-10 h-[3px] rounded-full mb-4" style="background:#EC7000"></div>
+        <div class="text-xs tracking-widest font-semibold text-white/70 mb-1">ITAÚ PERSONNALITÉ</div>
+        <div class="text-2xl font-bold leading-tight">AG Personnalité<br>Painel de Produtividade</div>
+      </div>
+      <div class="relative"></div>
+    </div>
+    <div class="bg-white dark:bg-[#0E1A2E] p-8 md:p-10">
+      <div class="md:hidden text-center mb-6">
+        <div class="inline-block text-navy dark:text-white font-bold tracking-widest text-xs pb-1.5 mb-1.5" style="border-bottom:2px solid #EC7000">ITAÚ PERSONNALITÉ</div>
+        <div class="text-lg font-bold text-navy dark:text-white">AG Personnalité · Produtividade</div>
+      </div>
+      <h1 class="text-xl font-bold text-navy dark:text-white mb-1">Entrar no painel</h1>
+      <p class="text-slate-500 dark:text-slate-400 mb-6 text-[13px]">Use o usuário e senha cadastrados pelo gerente geral.</p>
+
+      <form id="login-form" onsubmit="return handleLogin(event)" class="space-y-3">
+        <div>
+          <label>Usuário</label>
+          <input type="text" id="login-user" autocomplete="username" placeholder="ex: cart72" required>
+        </div>
+        <div>
+          <label>Senha</label>
+          <input type="password" id="login-pass" autocomplete="current-password" placeholder="••••••••" required>
+        </div>
+        <div id="login-error" class="hidden text-red-600 text-[12.5px] font-medium"></div>
+        <button type="submit" class="w-full py-2.5 rounded-lg btn-accent font-bold mt-2">Entrar</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP SHELL ============ -->
+<div id="screen-app" class="hidden min-h-screen">
+  <!-- Topbar -->
+  <div class="fixed top-0 left-0 right-0 h-16 bg-navy-deep text-white flex items-center justify-between px-4 md:px-6 z-40 shadow-lg">
+    <div class="flex items-center gap-3">
+      <button onclick="toggleSidebar()" id="btn-hamburger" class="md:hidden text-xl"></button>
+      <div class="w-9 h-9 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center text-white font-bold">AG</div>
+      <div class="leading-tight">
+        <div class="text-[11px] tracking-widest font-bold text-white/70 inline-block pb-0.5" style="border-bottom:2px solid #EC7000">ITAÚ PERSONNALITÉ</div>
+        <div class="font-bold text-sm">Painel de Produtividade</div>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 md:gap-3">
+      <div class="hidden lg:flex items-center gap-2 mr-2">
+        <input type="text" id="global-search" oninput="onGlobalSearch()" placeholder="Busca rápida..." class="!w-56 !py-1.5 !text-[12.5px]">
+      </div>
+      <div id="sync-badge" class="hidden md:block text-[11px] px-2.5 py-1 rounded-full bg-white/10 border border-white/15" title="Status da sincronização">— </div>
+      <button onclick="toggleDark()" id="dark-toggle-btn" class="w-9 h-9 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center"></button>
+      <div class="relative">
+        <button onclick="document.getElementById('user-menu').classList.toggle('hidden')" class="flex items-center gap-2 bg-white/10 hover:bg-white/20 rounded-lg px-3 py-1.5">
+          <span id="topbar-username" class="text-xs font-semibold">—</span>
+          <span id="user-menu-caret" class="text-[10px]"></span>
+        </button>
+        <div id="user-menu" class="hidden absolute right-0 mt-2 w-52 bg-white dark:bg-[#111B30] text-navy dark:text-white rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden text-[13px]">
+          <button onclick="navigateTo('conta')" id="menu-item-conta" class="w-full text-left px-4 py-2.5 hover:bg-accent/10 flex items-center gap-2"></button>
+          <button onclick="forceSync(true)" id="menu-item-sync" class="w-full text-left px-4 py-2.5 hover:bg-accent/10 flex items-center gap-2"></button>
+          <button onclick="doLogout()" id="menu-item-logout" class="w-full text-left px-4 py-2.5 hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 flex items-center gap-2"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div id="sidebar" class="sidebar-mobile md:translate-x-0 fixed md:fixed top-16 left-0 bottom-0 w-64 bg-white dark:bg-[#0E1A2E] border-r border-slate-200 dark:border-slate-800 z-30 overflow-y-auto">
+    <nav class="py-4" id="nav-list"></nav>
+  </div>
+  <div id="sidebar-overlay" onclick="toggleSidebar()" class="hidden fixed inset-0 bg-black/40 z-20 md:hidden"></div>
+
+  <!-- Content -->
+  <div class="md:ml-64 pt-16 min-h-screen">
+    <div id="view-root" class="p-4 md:p-7 max-w-[1500px] mx-auto"></div>
+  </div>
+</div>
+
+<script>
+/* ======================================================================
+   CONFIG
+====================================================================== */
+let CARTEIRAS = []; // populado via loadAllData() a partir da tabela 'carteiras' no Supabase
+const INDICATORS = [
+  { key:'captacao_liquida', label:'Captação Líquida', unit:'R$', color:'#0B2447' },
+  { key:'portabilidade_previdencia', label:'Portabilidade de Previdência', unit:'R$', color:'#2E5A8F' },
+  { key:'protecao', label:'Proteção', unit:'R$', color:'#3E7CB1' },
+  { key:'qualificacao', label:'Qualificação', unit:'Qtd', color:'#5FA8D3' },
+  { key:'fidelizacao', label:'Fidelização', unit:'Qtd', color:'#8FBFE0' },
+  { key:'cesta_bens', label:'Cesta de Bens', unit:'R$', color:'#123B6E' },
+  { key:'cesta_financeiro', label:'Cesta Financeiro', unit:'R$', color:'#4FC3E0' },
+  { key:'recuperacao', label:'Recuperação', unit:'R$', color:'#274472' },
+  { key:'conquista', label:'Conquista', unit:'Qtd', color:'#1E5FD9', hasSub:true, subItems:[
+      {key:'migracao', label:'Migração'}, {key:'conta_mercado', label:'Conta Mercado'}
+  ]},
+];
+function indicatorByKey(k){ return INDICATORS.find(i=>i.key===k); }
+function fmtMoney(v){ v = Number(v)||0; return v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}); }
+function fmtNum(v){ v = Number(v)||0; return v.toLocaleString('pt-BR',{maximumFractionDigits:2}); }
+function fmtVal(v,unit){ return unit==='R$' ? fmtMoney(v) : fmtNum(v); }
+// Parses a Brazilian-formatted number string ("1.234,56" or "1234,56" or "-1234,56") into a JS Number
+function parseBRNumber(str){
+  if(str === undefined || str === null || str === '') return 0;
+  str = String(str).trim();
+  if(str==='') return 0;
+  const negative = str.startsWith('-');
+  str = str.replace(/^-/,'').replace(/[^0-9.,]/g,'');
+  str = str.replace(/\./g,'').replace(',', '.');
+  let num = parseFloat(str);
+  if(isNaN(num)) num = 0;
+  return negative ? -Math.abs(num) : num;
+}
+// Formats a Number as Brazilian currency-style text (1.234,56) without the R$ symbol, for use inside inputs
+function formatBRCurrencyInput(num){
+  num = Number(num)||0;
+  return num.toLocaleString('pt-BR', { minimumFractionDigits:2, maximumFractionDigits:2 });
+}
+function onCurrencyFocus(el){
+  const num = parseBRNumber(el.value);
+  el.value = num === 0 ? '' : String(num).replace('.', ',');
+}
+function onCurrencyBlur(el){
+  if(el.value.trim()==='') return;
+  el.value = formatBRCurrencyInput(parseBRNumber(el.value));
+}
+function currencyInputHTML(id, value){
+  const shown = (value===''||value===undefined||value===null) ? '' : formatBRCurrencyInput(value);
+  return `<input type="text" inputmode="decimal" id="${id}" value="${shown}" placeholder="0,00" onfocus="onCurrencyFocus(this)" onblur="onCurrencyBlur(this)">`;
+}
+function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function nowIso(){ return new Date().toISOString(); }
+function fmtDateBR(iso){ if(!iso) return '—'; const [y,m,d]=String(iso).split('-'); return d&&m&&y ? `${d}/${m}/${y}` : iso; }
+
+/* ======================================================================
+   ICONS — compact inline SVG (outline style), replaces emoji throughout the UI
+====================================================================== */
+const ICONS = {
+  'menu': '<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>',
+  'moon': '<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/>',
+  'sun': '<circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.2" y1="4.2" x2="5.6" y2="5.6"/><line x1="18.4" y1="18.4" x2="19.8" y2="19.8"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.2" y1="19.8" x2="5.6" y2="18.4"/><line x1="18.4" y1="5.6" x2="19.8" y2="4.2"/>',
+  'key': '<circle cx="8" cy="15" r="4"/><line x1="10.8" y1="12.2" x2="20" y2="3"/><line x1="16" y1="7" x2="19" y2="10"/><line x1="13.5" y1="9.5" x2="16" y2="12"/>',
+  'refresh-cw': '<path d="M3 12a9 9 0 0 1 15.3-6.5L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.3 6.5L3 16"/><path d="M3 21v-5h5"/>',
+  'check-circle': '<circle cx="12" cy="12" r="9"/><polyline points="8,12.5 11,15.5 16,9"/>',
+  'alert-triangle': '<path d="M12 3 2 21h20L12 3z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17.3" r="0.9" fill="currentColor" stroke="none"/>',
+  'lock': '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  'bar-chart': '<line x1="4" y1="20" x2="20" y2="20"/><rect x="5" y="12" width="3" height="8"/><rect x="10.5" y="7" width="3" height="13"/><rect x="16" y="14" width="3" height="6"/>',
+  'edit': '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>',
+  'target': '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/>',
+  'trophy': '<path d="M7 4h10v4a5 5 0 0 1-10 0V4z"/><path d="M7 5H4a3 3 0 0 0 3 5"/><path d="M17 5h3a3 3 0 0 1-3 5"/><line x1="12" y1="13" x2="12" y2="17"/><line x1="8.5" y1="20" x2="15.5" y2="20"/><line x1="12" y1="17" x2="12" y2="20"/>',
+  'trending-up': '<polyline points="3,17 9,11 13,15 21,6"/><polyline points="15,6 21,6 21,12"/>',
+  'table': '<rect x="3" y="4" width="18" height="16" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="9" y1="4" x2="9" y2="20"/>',
+  'sliders': '<line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="7" cy="18" r="2"/>',
+  'download': '<path d="M12 3v12"/><polyline points="7,11 12,16 17,11"/><path d="M5 19h14"/>',
+  'wallet': '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14.5" r="1.2" fill="currentColor" stroke="none"/>',
+  'award': '<circle cx="12" cy="8" r="5"/><path d="M9 12.5 7 21l5-3 5 3-2-8.5"/>',
+  'save': '<path d="M5 4h11l3 3v13H5z"/><path d="M8 4v6h8V4"/><rect x="8" y="14" width="8" height="6"/>',
+  'user-plus': '<circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0 1 12 0"/><line x1="18" y1="8" x2="18" y2="14"/><line x1="15" y1="11" x2="21" y2="11"/>',
+  'folder': '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>',
+  'folder-open': '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v1H3z"/><path d="M3 8l1.5 9a2 2 0 0 0 2 1.7h9a2 2 0 0 0 2-1.7L19 8"/>',
+  'file-plus': '<path d="M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9z"/><polyline points="13,3 13,9 19,9"/><line x1="12" y1="12" x2="12" y2="18"/><line x1="9" y1="15" x2="15" y2="15"/>',
+  'upload': '<path d="M12 16V4"/><polyline points="7,9 12,4 17,9"/><path d="M5 16v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/>',
+  'log-out': '<path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3"/><polyline points="14,15 19,10 14,5"/><line x1="19" y1="10" x2="8" y2="10"/>',
+  'chevron-down': '<polyline points="7,9 12,14 17,9"/>',
+};
+function icon(name, cls){
+  cls = cls || 'w-4 h-4';
+  const inner = ICONS[name] || '';
+  return `<svg class="${cls} inline-block align-[-3px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+}
+function statusDot(color){
+  return `<span class="inline-block w-2 h-2 rounded-full align-middle mr-1" style="background:${color}"></span>`;
+}
+
+/* ======================================================================
+   TOASTS
+====================================================================== */
+function toast(msg, type){
+  type = type || 'navy';
+  const colors = { navy:'#0B2447', amber:'#9A6B00', green:'#1E7A46', red:'#B3261E' };
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.style.background = colors[type] || colors.navy;
+  el.textContent = msg;
+  document.getElementById('toast-wrap').appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 3200);
+}
+
+/* ======================================================================
+   GLOBAL ERROR SAFETY NET — surfaces any uncaught error as a toast,
+   instead of failing silently
+====================================================================== */
+window.addEventListener('error', (e)=>{
+  console.error(e.error || e.message);
+  try{ toast('Erro inesperado: ' + (e.message || 'veja o console (F12)'), 'red'); }catch(_e){}
+});
+window.addEventListener('unhandledrejection', (e)=>{
+  const reason = e.reason;
+  console.error(reason);
+  const msg = (reason && reason.message) ? reason.message : String(reason);
+  try{ toast('Erro inesperado: ' + msg, 'red'); }catch(_e){}
+});
+
+
+/* ======================================================================
+   SUPABASE CLIENT
+====================================================================== */
+const SUPABASE_URL = 'https://fjmzbbpnruhcjtzvaaew.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_6MC_EFiNYSlMf2pLAe_YsQ__cyZ3wT-';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+function emailFor(usuario){ return usuario.toLowerCase().trim() + '@ag2492.internal'; }
+
+/* ======================================================================
+   STATE
+====================================================================== */
+let DB = { profiles:[], metas:[], producao:[] };
+let session = null; // {id, usuario, nome, perfil, carteira}
+let currentView = 'dashboard';
+let charts = {};
+let tablePage = 1;
+let tablePageSize = 15;
+let tableSort = { col:'data', dir:'desc' };
+let tableFilters = { carteiras:[], indicadores:[], de:'', ate:'', busca:'' };
+let realtimeChannel = null;
+
+/* ======================================================================
+   DATA LOAD — fetch everything the current session is allowed to see
+   (Row Level Security on the server already restricts colaborador to
+   their own carteira; this just pulls whatever comes back)
+====================================================================== */
+async function loadAllData(){
+  const [{ data: carteirasRows }, { data: metasRows }, { data: producaoRows }] = await Promise.all([
+    sb.from('carteiras').select('numero').order('numero'),
+    sb.from('metas').select('*'),
+    sb.from('producao').select('*'),
+  ]);
+  CARTEIRAS = (carteirasRows || []).map(r=>r.numero);
+  DB.metas = (metasRows || []).map(r=>({ ...r, dataCadastro:r.data_cadastro, cadastradoPor:r.cadastrado_por }));
+  DB.producao = (producaoRows || []).map(r=>({ ...r, atualizadoEm:r.atualizado_em, atualizadoPor:r.atualizado_por }));
+  if(session && session.perfil === 'gerente'){
+    const { data: profileRows } = await sb.from('profiles').select('*').order('usuario');
+    DB.profiles = profileRows || [];
+  } else if(session){
+    const { data: ownProfile } = await sb.from('profiles').select('*').eq('id', session.id).single();
+    DB.profiles = ownProfile ? [ownProfile] : [];
+  }
+}
+
+function subscribeRealtime(){
+  if(realtimeChannel) sb.removeChannel(realtimeChannel);
+  realtimeChannel = sb.channel('ag2492-changes')
+    .on('postgres_changes', { event:'*', schema:'public', table:'metas' }, ()=>{ loadAllData().then(renderCurrentView); })
+    .on('postgres_changes', { event:'*', schema:'public', table:'producao' }, ()=>{ loadAllData().then(renderCurrentView); })
+    .on('postgres_changes', { event:'*', schema:'public', table:'carteiras' }, ()=>{ loadAllData().then(renderCurrentView); })
+    .subscribe();
+}
+
+async function forceSync(manual){
+  await loadAllData();
+  renderCurrentView();
+  if(manual) toast('Dados atualizados.', 'green');
+}
+
+function updateSyncBadge(){
+  const el = document.getElementById('sync-badge');
+  if(!el) return;
+  el.innerHTML = statusDot('#22C55E') + 'Conectado';
+}
+
+/* ======================================================================
+   AUTH
+====================================================================== */
+async function handleLogin(evt){
+  evt.preventDefault();
+  const usuario = document.getElementById('login-user').value.trim();
+  const senha = document.getElementById('login-pass').value;
+  const errBox = document.getElementById('login-error');
+  const submitBtn = evt.target.querySelector('button[type=submit]');
+  errBox.classList.add('hidden');
+  submitBtn.disabled = true; submitBtn.textContent = 'Entrando...';
+
+  const { data, error } = await sb.auth.signInWithPassword({ email: emailFor(usuario), password: senha });
+  if(error || !data.user){
+    errBox.textContent = 'Usuário ou senha incorretos.';
+    errBox.classList.remove('hidden');
+    submitBtn.disabled = false; submitBtn.textContent = 'Entrar';
+    return false;
+  }
+
+  const { data: profile, error: profErr } = await sb.from('profiles').select('*').eq('id', data.user.id).single();
+  if(profErr || !profile){
+    errBox.textContent = 'Login feito, mas não encontramos seu perfil. Fale com o gerente geral.';
+    errBox.classList.remove('hidden');
+    submitBtn.disabled = false; submitBtn.textContent = 'Entrar';
+    await sb.auth.signOut();
+    return false;
+  }
+
+  session = { id:profile.id, usuario:profile.usuario, nome:profile.nome, perfil:profile.perfil, carteira:profile.carteira };
+  submitBtn.disabled = false; submitBtn.textContent = 'Entrar';
+  await afterLogin(profile.precisa_trocar_senha);
+  return false;
+}
+
+async function afterLogin(precisaTrocarSenha){
+  document.getElementById('screen-login').classList.add('hidden');
+  document.getElementById('screen-app').classList.remove('hidden');
+  document.getElementById('topbar-username').textContent = session.nome + (session.perfil==='gerente' ? ' · Gerente' : ' · Cart. '+session.carteira);
+  buildNav();
+  await loadAllData();
+  subscribeRealtime();
+  updateSyncBadge();
+  navigateTo(precisaTrocarSenha ? 'conta' : 'dashboard');
+  if(precisaTrocarSenha) toast('Por segurança, defina uma nova senha antes de continuar.', 'amber');
+}
+
+async function doLogout(){
+  if(realtimeChannel){ sb.removeChannel(realtimeChannel); realtimeChannel = null; }
+  await sb.auth.signOut();
+  session = null;
+  document.getElementById('screen-app').classList.add('hidden');
+  document.getElementById('screen-login').classList.remove('hidden');
+  document.getElementById('login-form').reset();
+}
+
+async function tryRestoreSession(){
+  const { data } = await sb.auth.getSession();
+  if(!data.session) return;
+  const { data: profile } = await sb.from('profiles').select('*').eq('id', data.session.user.id).single();
+  if(!profile) return;
+  session = { id:profile.id, usuario:profile.usuario, nome:profile.nome, perfil:profile.perfil, carteira:profile.carteira };
+  await afterLogin(profile.precisa_trocar_senha);
+}
+
+
+/* ======================================================================
+   NAV / SHELL
+====================================================================== */
+function buildNav(){
+  const items = [
+    { id:'dashboard', label:'Dashboard Executivo', icon:'bar-chart' },
+    { id:'lancamento', label:'Lançamento Diário', icon:'edit' },
+    { id:'metas', label:'Minhas Metas', icon:'target' },
+  ];
+  if(session.perfil === 'gerente'){
+    items.push({ id:'ranking', label:'Ranking', icon:'trophy' });
+  }
+  items.push({ id:'comparativo', label:'Comparativo por Período', icon:'trending-up' });
+  items.push({ id:'tabela', label:'Tabela Dinâmica', icon:'table' });
+  items.push({ id:'conta', label:'Minha Conta', icon:'key' });
+  if(session.perfil === 'gerente'){
+    items.push({ id:'admin', label:'Administração', icon:'sliders' });
+  }
+  const nav = document.getElementById('nav-list');
+  nav.innerHTML = items.map(it=>`
+    <button data-nav="${it.id}" onclick="navigateTo('${it.id}')" class="nav-item w-full flex items-center gap-3 px-5 py-3 text-left text-[13.5px] font-medium text-slate-600 dark:text-slate-300">
+      ${icon(it.icon, 'w-[18px] h-[18px]')}<span>${it.label}</span>
+    </button>`).join('');
+}
+
+
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('hidden');
+}
+
+function toggleDark(){
+  document.documentElement.classList.toggle('dark');
+  const isDark = document.documentElement.classList.contains('dark');
+  localStorage.setItem('agDashDarkMode', isDark ? '1':'0');
+  document.getElementById('dark-toggle-btn').innerHTML = icon(isDark ? 'sun' : 'moon', 'w-4 h-4');
+  renderCurrentView();
+}
+(function initDark(){
+  if(localStorage.getItem('agDashDarkMode')==='1'){
+    document.documentElement.classList.add('dark');
+  }
+})();
+
+function navigateTo(view){
+  currentView = view;
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active', b.dataset.nav===view));
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.add('hidden');
+  document.getElementById('user-menu').classList.add('hidden');
+  renderCurrentView();
+}
+function renderCurrentView(){
+  const map = { dashboard:renderDashboard, lancamento:renderLancamento, metas:renderMetas, ranking:renderRanking,
+    comparativo:renderComparativo, tabela:renderTabela, admin:renderAdmin, conta:renderConta };
+  (map[currentView] || renderDashboard)();
+}
+function onGlobalSearch(){
+  const val = document.getElementById('global-search').value;
+  if(currentView !== 'tabela'){ navigateTo('tabela'); }
+  setTimeout(()=>{ tableFilters.busca = val; const el=document.getElementById('tf-busca'); if(el) el.value = val; tablePage=1; renderTabelaBody(); }, 30);
+}
+
+/* ======================================================================
+   DATA HELPERS
+====================================================================== */
+function scopeCarteiras(){
+  return session.perfil === 'gerente' ? CARTEIRAS : [Number(session.carteira)];
+}
+function getProducaoRow(carteira, indKey, sub, data){
+  return DB.producao.find(r => String(r.carteira)===String(carteira) && r.indicador===indKey && (r.sub||'')===(sub||'') && r.data===data);
+}
+function latestValue(carteira, indKey, sub){
+  const rows = DB.producao.filter(r=> String(r.carteira)===String(carteira) && r.indicador===indKey && (r.sub||'')===(sub||'')).sort((a,b)=> a.data<b.data?1:-1);
+  return rows.length ? Number(rows[0].valor)||0 : 0;
+}
+function valueOnOrBefore(carteira, indKey, sub, dateStr){
+  const rows = DB.producao.filter(r=> String(r.carteira)===String(carteira) && r.indicador===indKey && (r.sub||'')===(sub||'') && r.data<=dateStr).sort((a,b)=> a.data<b.data?1:-1);
+  return rows.length ? Number(rows[0].valor)||0 : 0;
+}
+function getMeta(carteira, indKey, sub){
+  sub = sub || '';
+  const row = DB.metas.find(r=> String(r.carteira)===String(carteira) && r.indicador===indKey && (r.sub||'')===sub);
+  return row ? row : null;
+}
+// Whole-indicator meta total: sums sub-item metas when the indicator has them (ex: Conquista = Migração + Conta Mercado)
+function indicatorMetaTotal(carteira, indKey){
+  const ind = indicatorByKey(indKey);
+  if(ind && ind.hasSub){
+    return ind.subItems.reduce((s,si)=>{ const m = getMeta(carteira, indKey, si.key); return s + (m? Number(m.valor)||0 : 0); }, 0);
+  }
+  const m = getMeta(carteira, indKey, '');
+  return m ? Number(m.valor)||0 : 0;
+}
+// Whole-indicator current value: sums sub-items when the indicator has them (ex: Conquista = Migração + Conta Mercado)
+function currentIndicatorValue(carteira, indKey){
+  const ind = indicatorByKey(indKey);
+  if(ind && ind.hasSub){ return ind.subItems.reduce((s,si)=> s + latestValue(carteira, indKey, si.key), 0); }
+  return latestValue(carteira, indKey, '');
+}
+function indicatorValueOnOrBefore(carteira, indKey, dateStr){
+  const ind = indicatorByKey(indKey);
+  if(ind && ind.hasSub){ return ind.subItems.reduce((s,si)=> s + valueOnOrBefore(carteira, indKey, si.key, dateStr), 0); }
+  return valueOnOrBefore(carteira, indKey, '', dateStr);
+}
+function totalIndicatorToday(indKey){
+  return scopeCarteiras().reduce((sum,c)=> sum + currentIndicatorValue(c, indKey), 0);
+}
+function totalMeta(indKey){
+  return scopeCarteiras().reduce((sum,c)=> sum + indicatorMetaTotal(c, indKey), 0);
+}
+function pctAtingido(indKey){
+  const meta = totalMeta(indKey);
+  const atual = totalIndicatorToday(indKey);
+  if(!meta) return 0;
+  return Math.round((atual/meta)*1000)/10;
+}
+function pctTextColor(pct){
+  if(pct>=100) return 'color:#1E7A46';
+  if(pct>=60) return 'color:#8A6D0B';
+  return 'color:#B3261E';
+}
+function agencySummaryRowsHTML(){
+  return INDICATORS.map(ind=>{
+    const metaTotal = totalMeta(ind.key);
+    const atual = totalIndicatorToday(ind.key);
+    const pct = metaTotal ? Math.round((atual/metaTotal)*1000)/10 : null;
+    return `<tr class="row-hover border-t border-slate-100 dark:border-slate-800">
+      <td class="p-2">${ind.label}</td>
+      <td class="p-2 text-right">${metaTotal ? fmtVal(metaTotal, ind.unit) : '—'}</td>
+      <td class="p-2 text-right">${fmtVal(atual, ind.unit)}</td>
+      <td class="p-2 text-right font-semibold" style="${pct===null?'':pctTextColor(pct)}">${pct===null?'sem meta':pct+'%'}</td>
+    </tr>`;
+  }).join('');
+}
+
+/* ======================================================================
+   VIEW: DASHBOARD EXECUTIVO
+====================================================================== */
+function renderDashboard(){
+  const root = document.getElementById('view-root');
+  const today = todayStr();
+  const yestDate = new Date(); yestDate.setDate(yestDate.getDate()-1);
+  const yest = yestDate.toISOString().slice(0,10);
+
+  const adesaoHoje = scopeCarteiras().filter(c => DB.producao.some(r=> String(r.carteira)===String(c) && r.data===today)).length;
+  const pcts = INDICATORS.map(i=> ({ ind:i, pct: pctAtingido(i.key) }));
+  const melhor = [...pcts].sort((a,b)=>b.pct-a.pct)[0];
+  const pior = [...pcts].sort((a,b)=>a.pct-b.pct)[0];
+  const mediaAtingimento = Math.round((pcts.reduce((s,p)=>s+p.pct,0)/pcts.length)*10)/10;
+
+  const captacaoHoje = totalIndicatorToday('captacao_liquida');
+  const captacaoOntem = scopeCarteiras().reduce((s,c)=>s+valueOnOrBefore(c,'captacao_liquida','',yest),0);
+  const deltaCaptacao = captacaoHoje - captacaoOntem;
+
+  root.innerHTML = `
+  <div class="fade-in" id="print-area">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+      <div>
+        <h1 class="text-xl font-bold text-navy dark:text-white accent-underline inline-block">Dashboard Executivo</h1>
+        <p class="text-slate-500 dark:text-slate-400 text-[12.5px] mt-2">${session.perfil==='gerente' ? 'Visão consolidada — AG Personnalité (carteiras ' + Math.min(...CARTEIRAS) + ' a ' + Math.max(...CARTEIRAS) + ')' : 'Visão da sua carteira ' + session.carteira}</p>
+      </div>
+      <div class="flex gap-2">
+        <button onclick="exportDashboardPDF()" class="px-3 py-2 rounded-lg btn-navy text-xs font-semibold">${icon('download')} Exportar PDF</button>
+        <button onclick="forceSync(true)" class="px-3 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-xs font-semibold">${icon('refresh-cw')} Atualizar</button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-6">
+      ${kpiCard(icon('wallet','w-5 h-5'),'Captação Líquida (hoje)', fmtMoney(captacaoHoje), (deltaCaptacao>=0?'+':'')+fmtMoney(deltaCaptacao)+' vs ontem', deltaCaptacao>=0?'green':'red')}
+      ${kpiCard(icon('target','w-5 h-5'),'Atingimento médio das metas', mediaAtingimento+'%', 'Média de ' + INDICATORS.length + ' indicadores', mediaAtingimento>=100?'green':'amber')}
+      ${kpiCard(icon('award','w-5 h-5'),'Melhor indicador', melhor.ind.label, melhor.pct+'% da meta', 'green')}
+      ${kpiCard(icon('alert-triangle','w-5 h-5'),'Indicador em atenção', pior.ind.label, pior.pct+'% da meta', 'red')}
+      ${kpiCard(icon('check-circle','w-5 h-5'),'Adesão hoje', adesaoHoje+'/'+scopeCarteiras().length, 'carteiras lançaram produção', adesaoHoje===scopeCarteiras().length?'green':'amber')}
+    </div>
+
+    ${session.perfil==='gerente' ? `
+    <div class="card p-0 overflow-hidden mb-6">
+      <div class="p-4 font-bold text-navy dark:text-white text-sm">Meta e Produção da Agência (soma das 12 carteiras)</div>
+      <div class="scrollx">
+        <table class="w-full text-[12.5px]">
+          <thead class="bg-navy text-white"><tr><th class="p-2 text-left">Indicador</th><th class="p-2 text-right">Meta da Agência</th><th class="p-2 text-right">Produção da Agência</th><th class="p-2 text-right">% Atingido</th></tr></thead>
+          <tbody>${agencySummaryRowsHTML()}</tbody>
+        </table>
+      </div>
+    </div>` : ''}
+
+    <div class="grid lg:grid-cols-3 gap-4 mb-6">
+      <div class="card p-4 lg:col-span-2">
+        <div class="font-bold text-navy dark:text-white mb-3 text-sm">Atingimento de meta por indicador</div>
+        <div class="h-72"><canvas id="chart-metas"></canvas></div>
+      </div>
+      <div class="card p-4">
+        <div class="font-bold text-navy dark:text-white mb-3 text-sm">Composição da produção (R$)</div>
+        <div class="h-72"><canvas id="chart-comp"></canvas></div>
+      </div>
+    </div>
+
+    <div class="grid lg:grid-cols-2 gap-4">
+      <div class="card p-4">
+        <div class="font-bold text-navy dark:text-white mb-3 text-sm">Tendência — últimos 14 dias (Captação Líquida)</div>
+        <div class="h-64"><canvas id="chart-trend"></canvas></div>
+      </div>
+      <div class="card p-4">
+        <div class="font-bold text-navy dark:text-white mb-3 text-sm">${session.perfil==='gerente' ? 'Produção por carteira (hoje)' : 'Seus indicadores (hoje vs meta)'}</div>
+        <div class="h-64"><canvas id="chart-carteiras"></canvas></div>
+      </div>
+    </div>
+  </div>`;
+
+  renderChartMetas();
+  renderChartComposicao();
+  renderChartTrend();
+  renderChartCarteiras();
+}
+function kpiCard(icon,label,value,sub,tone){
+  const toneMap = { green:'#1E7A46', red:'#B3261E', amber:'#9A6B00' };
+  return `<div class="card p-4 flex flex-col gap-2">
+    <div class="flex items-center gap-2">
+      <div class="kpi-icon" style="background:rgba(30,95,217,0.10); color:#1E5FD9">${icon}</div>
+    </div>
+    <div class="text-[11.5px] text-slate-500 dark:text-slate-400 font-medium">${label}</div>
+    <div class="text-lg font-bold text-navy dark:text-white leading-tight">${value}</div>
+    <div class="text-[11px] font-semibold" style="color:${toneMap[tone]||'#54607A'}">${sub}</div>
+  </div>`;
+}
+function destroyChart(id){ if(charts[id]){ charts[id].destroy(); delete charts[id]; } }
+function chartTextColor(){ return document.documentElement.classList.contains('dark') ? '#C8D2E5' : '#3A4358'; }
+function chartGridColor(){ return document.documentElement.classList.contains('dark') ? '#1F2C42' : '#EAEDF3'; }
+
+function renderChartMetas(){
+  destroyChart('metas');
+  const ctx = document.getElementById('chart-metas'); if(!ctx) return;
+  const data = INDICATORS.map(i=>pctAtingido(i.key));
+  charts.metas = new Chart(ctx, { type:'bar', data:{ labels:INDICATORS.map(i=>i.label), datasets:[{ label:'% da meta atingido', data, backgroundColor: INDICATORS.map(i=>i.color), borderRadius:6 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ ticks:{color:chartTextColor(), maxRotation:35, minRotation:35, font:{size:10}}, grid:{display:false} }, y:{ ticks:{color:chartTextColor()}, grid:{color:chartGridColor()} } } } });
+}
+function renderChartComposicao(){
+  destroyChart('comp');
+  const ctx = document.getElementById('chart-comp'); if(!ctx) return;
+  const moneyInds = INDICATORS.filter(i=>i.unit==='R$');
+  const data = moneyInds.map(i=>Math.max(totalIndicatorToday(i.key),0));
+  charts.comp = new Chart(ctx, { type:'doughnut', data:{ labels:moneyInds.map(i=>i.label), datasets:[{ data, backgroundColor:moneyInds.map(i=>i.color) }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ color:chartTextColor(), boxWidth:10, font:{size:10} } } } } });
+}
+function renderChartTrend(){
+  destroyChart('trend');
+  const ctx = document.getElementById('chart-trend'); if(!ctx) return;
+  const days = [];
+  for(let i=13;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); days.push(d.toISOString().slice(0,10)); }
+  const data = days.map(d => scopeCarteiras().reduce((s,c)=> s+valueOnOrBefore(c,'captacao_liquida','',d), 0));
+  charts.trend = new Chart(ctx, { type:'line', data:{ labels:days.map(d=>fmtDateBR(d).slice(0,5)), datasets:[{ label:'Captação Líquida', data, borderColor:'#1E5FD9', backgroundColor:'rgba(30,95,217,0.15)', fill:true, tension:.3 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ ticks:{color:chartTextColor(), font:{size:10}}, grid:{display:false} }, y:{ ticks:{color:chartTextColor()}, grid:{color:chartGridColor()} } } } });
+}
+function renderChartCarteiras(){
+  destroyChart('cart');
+  const ctx = document.getElementById('chart-carteiras'); if(!ctx) return;
+  if(session.perfil==='gerente'){
+    const data = CARTEIRAS.map(c=>latestValue(c,'captacao_liquida'));
+    charts.cart = new Chart(ctx, { type:'bar', data:{ labels:CARTEIRAS.map(c=>'Cart. '+c), datasets:[{ label:'Captação Líquida', data, backgroundColor:'#0B2447', borderRadius:6 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ ticks:{color:chartTextColor(), font:{size:10}}, grid:{display:false} }, y:{ ticks:{color:chartTextColor()}, grid:{color:chartGridColor()} } } } });
+  } else {
+    const c = session.carteira;
+    const data = INDICATORS.map(i=> pctAtingido(i.key));
+    charts.cart = new Chart(ctx, { type:'bar', data:{ labels:INDICATORS.map(i=>i.label), datasets:[{ label:'% meta', data, backgroundColor: INDICATORS.map(i=>i.color), borderRadius:6 }] },
+      options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ ticks:{color:chartTextColor()}, grid:{color:chartGridColor()} }, y:{ ticks:{color:chartTextColor(), font:{size:10}}, grid:{display:false} } } } });
+  }
+}
+
+function exportDashboardPDF(){
+  const el = document.getElementById('print-area');
+  toast('Gerando PDF...', 'navy');
+  html2canvas(el, { backgroundColor: document.documentElement.classList.contains('dark') ? '#0B1220' : '#F3F5F8', scale:2 }).then(canvas=>{
+    const { jsPDF } = window.jspdf;
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p','mm','a4');
+    const pageW = pdf.internal.pageSize.getWidth();
+    const imgH = canvas.height * pageW / canvas.width;
+    let heightLeft = imgH, position = 0;
+    pdf.addImage(imgData,'PNG',0,position,pageW,imgH);
+    heightLeft -= pdf.internal.pageSize.getHeight();
+    while(heightLeft > 0){
+      position = heightLeft - imgH;
+      pdf.addPage();
+      pdf.addImage(imgData,'PNG',0,position,pageW,imgH);
+      heightLeft -= pdf.internal.pageSize.getHeight();
+    }
+    pdf.save('Dashboard_AGPersonnalite_'+todayStr()+'.pdf');
+  });
+}
+
+/* ======================================================================
+   VIEW: LANÇAMENTO DIÁRIO
+====================================================================== */
+function renderLancamento(){
+  const root = document.getElementById('view-root');
+  const carteiraSel = session.perfil==='gerente'
+    ? `<select id="lanc-carteira" onchange="renderLancamentoForm()">${CARTEIRAS.map(c=>`<option value="${c}">Carteira ${c}</option>`).join('')}</select>`
+    : `<div class="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 font-semibold">Carteira ${session.carteira}</div>`;
+
+  root.innerHTML = `
+  <div class="fade-in">
+    <h1 class="text-xl font-bold text-navy dark:text-white accent-underline inline-block mb-1">Lançamento Diário</h1>
+    <p class="text-slate-500 dark:text-slate-400 text-[12.5px] mt-2 mb-5">O valor informado hoje <b>substitui</b> o valor de hoje (não soma). Histórico dos dias anteriores permanece preservado. Preencha os campos e clique em <b>Salvar todos os lançamentos</b>.</p>
+    <div class="card p-4 mb-4 max-w-xs">
+      <label class="block mb-1">Carteira</label>
+      ${carteiraSel}
+    </div>
+    <div id="lanc-form-wrap"></div>
+    <button onclick="saveAllLancamentos()" class="mt-5 px-6 py-2.5 rounded-lg btn-accent font-bold text-sm">${icon('save')} Salvar todos os lançamentos</button>
+  </div>`;
+  renderLancamentoForm();
+}
+function renderLancamentoForm(){
+  const wrap = document.getElementById('lanc-form-wrap');
+  const carteira = session.perfil==='gerente' ? Number(document.getElementById('lanc-carteira').value) : Number(session.carteira);
+  const today = todayStr();
+
+  wrap.innerHTML = `<div class="grid md:grid-cols-2 gap-4">` + INDICATORS.map(ind=>{
+    if(ind.hasSub){
+      return `<div class="card p-4">
+        <div class="font-bold text-navy dark:text-white mb-1 text-[13px]">${ind.label}</div>
+        <div class="text-[11px] text-slate-400 mb-3">Unidade: ${ind.unit} · pode ser negativo</div>
+        ${ind.subItems.map(s=>{
+          const row = getProducaoRow(carteira, ind.key, s.key, today);
+          const val = row ? row.valor : '';
+          const inputHtml = ind.unit==='R$' ? currencyInputHTML('in-'+ind.key+'-'+s.key, val) : `<input type="number" step="any" id="in-${ind.key}-${s.key}" value="${val}" placeholder="0">`;
+          return `<div class="mb-2"><label>${s.label}</label>${inputHtml}</div>`;
+        }).join('')}
+      </div>`;
+    }
+    const row = getProducaoRow(carteira, ind.key, '', today);
+    const val = row ? row.valor : '';
+    const inputHtml = ind.unit==='R$' ? currencyInputHTML('in-'+ind.key, val) : `<input type="number" step="any" id="in-${ind.key}" value="${val}" placeholder="0">`;
+    return `<div class="card p-4">
+      <div class="font-bold text-navy dark:text-white mb-1 text-[13px]">${ind.label}</div>
+      <div class="text-[11px] text-slate-400 mb-3">Unidade: ${ind.unit} · pode ser negativo</div>
+      ${inputHtml}
+    </div>`;
+  }).join('') + `</div>`;
+}
+async function saveAllLancamentos(){
+  const carteira = session.perfil==='gerente' ? Number(document.getElementById('lanc-carteira').value) : Number(session.carteira);
+  const today = todayStr();
+  const rows = [];
+  INDICATORS.forEach(ind=>{
+    if(ind.hasSub){
+      ind.subItems.forEach(s=>{
+        const el = document.getElementById('in-'+ind.key+'-'+s.key);
+        if(!el) return;
+        const valor = ind.unit==='R$' ? parseBRNumber(el.value) : (el.value===''?0:Number(el.value));
+        rows.push({ data:today, carteira, indicador:ind.key, sub:s.key, valor, atualizado_em:nowIso(), atualizado_por:session.nome });
+      });
+    } else {
+      const el = document.getElementById('in-'+ind.key);
+      if(!el) return;
+      const valor = ind.unit==='R$' ? parseBRNumber(el.value) : (el.value===''?0:Number(el.value));
+      rows.push({ data:today, carteira, indicador:ind.key, sub:'', valor, atualizado_em:nowIso(), atualizado_por:session.nome });
+    }
+  });
+  const { error } = await sb.from('producao').upsert(rows, { onConflict:'data,carteira,indicador,sub' });
+  if(error){ toast('Erro ao salvar: ' + error.message, 'red'); return; }
+  await loadAllData();
+  toast('Lançamentos de hoje salvos com sucesso.', 'green');
+  renderLancamentoForm();
+}
+
+/* ======================================================================
+   VIEW: METAS
+====================================================================== */
+function renderMetas(){
+  const root = document.getElementById('view-root');
+  const carteiraSel = session.perfil==='gerente'
+    ? `<select id="meta-carteira" onchange="renderMetasForm()">${CARTEIRAS.map(c=>`<option value="${c}">Carteira ${c}</option>`).join('')}</select>`
+    : `<div class="px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 font-semibold">Carteira ${session.carteira}</div>`;
+  root.innerHTML = `
+  <div class="fade-in">
+    <h1 class="text-xl font-bold text-navy dark:text-white accent-underline inline-block mb-1">Minhas Metas</h1>
+    <p class="text-slate-500 dark:text-slate-400 text-[12.5px] mt-2 mb-5">Preencha os valores de meta por indicador e clique em <b>Salvar todas as metas</b>. As metas podem ser alteradas a qualquer momento.</p>
+    <div class="card p-4 mb-4 max-w-xs">
+      <label class="block mb-1">Carteira</label>
+      ${carteiraSel}
+    </div>
+    <div id="meta-form-wrap"></div>
+    <button onclick="saveAllMetas()" class="mt-5 px-6 py-2.5 rounded-lg btn-accent font-bold text-sm">${icon('save')} Salvar todas as metas</button>
+  </div>`;
+  renderMetasForm();
+}
+function renderMetasForm(){
+  const wrap = document.getElementById('meta-form-wrap');
+  const carteira = session.perfil==='gerente' ? Number(document.getElementById('meta-carteira').value) : Number(session.carteira);
+  wrap.innerHTML = `<div class="grid md:grid-cols-2 gap-4">` + INDICATORS.map(ind=>{
+    if(ind.hasSub){
+      const subMetas = ind.subItems.map(s=> getMeta(carteira, ind.key, s.key));
+      const lastDate = subMetas.filter(m=>m&&m.dataCadastro).map(m=>m.dataCadastro).sort().pop();
+      return `<div class="card p-4">
+        <div class="flex items-center justify-between mb-1">
+          <div class="font-bold text-navy dark:text-white text-[13px]">${ind.label}</div>
+          ${lastDate ? `<span class="badge" style="background:#EAF1F8;color:#2E5A8F">atualizada em ${fmtDateBR(lastDate)}</span>` : `<span class="badge" style="background:#E7F5EC;color:#1E7A46">sem meta</span>`}
+        </div>
+        <div class="text-[11px] text-slate-400 mb-3">Unidade: ${ind.unit} · meta total = soma dos itens abaixo</div>
+        ${ind.subItems.map(s=>{
+          const m = getMeta(carteira, ind.key, s.key);
+          return `<div class="mb-2">
+            <label>${s.label}</label>
+            <input type="number" step="any" id="meta-${ind.key}-${s.key}" value="${m? m.valor : ''}" placeholder="Valor da meta">
+          </div>`;
+        }).join('')}
+      </div>`;
+    }
+    const meta = getMeta(carteira, ind.key);
+    const inputHtml = ind.unit==='R$' ? currencyInputHTML('meta-'+ind.key, meta?meta.valor:'') : `<input type="number" step="any" id="meta-${ind.key}" value="${meta? meta.valor : ''}" placeholder="Valor da meta">`;
+    return `<div class="card p-4">
+      <div class="flex items-center justify-between mb-1">
+        <div class="font-bold text-navy dark:text-white text-[13px]">${ind.label}</div>
+        ${meta && meta.dataCadastro ? `<span class="badge" style="background:#EAF1F8;color:#2E5A8F">atualizada em ${fmtDateBR(meta.dataCadastro)}</span>` : `<span class="badge" style="background:#E7F5EC;color:#1E7A46">sem meta</span>`}
+      </div>
+      <div class="text-[11px] text-slate-400 mb-3">Unidade: ${ind.unit}</div>
+      ${inputHtml}
+    </div>`;
+  }).join('') + `</div>`;
+}
+async function saveAllMetas(){
+  const carteira = session.perfil==='gerente' ? Number(document.getElementById('meta-carteira').value) : Number(session.carteira);
+  const rows = [];
+  INDICATORS.forEach(ind=>{
+    if(ind.hasSub){
+      ind.subItems.forEach(s=>{
+        const el = document.getElementById('meta-'+ind.key+'-'+s.key);
+        if(!el || el.value === '') return;
+        rows.push({ carteira, indicador:ind.key, sub:s.key, valor:Number(el.value), data_cadastro:todayStr(), cadastrado_por:session.nome });
+      });
+      return;
+    }
+    const el = document.getElementById('meta-'+ind.key);
+    if(!el || el.value === '') return;
+    const valor = ind.unit==='R$' ? parseBRNumber(el.value) : Number(el.value);
+    rows.push({ carteira, indicador:ind.key, sub:'', valor, data_cadastro:todayStr(), cadastrado_por:session.nome });
+  });
+  if(!rows.length){ toast('Nenhum valor informado.', 'amber'); return; }
+  const { error } = await sb.from('metas').upsert(rows, { onConflict:'carteira,indicador,sub' });
+  if(error){ toast('Erro ao salvar metas: ' + error.message, 'red'); return; }
+  await loadAllData();
+  toast('Metas da carteira '+carteira+' salvas com sucesso.', 'green');
+  renderMetasForm();
+}
+
+/* ======================================================================
+   VIEW: RANKING
+====================================================================== */
+function renderRanking(){
+  if(session.perfil !== 'gerente'){ navigateTo('dashboard'); return; }
+  const root = document.getElementById('view-root');
+  root.innerHTML = `
+  <div class="fade-in">
+    <h1 class="text-xl font-bold text-navy dark:text-white accent-underline inline-block mb-1">Ranking</h1>
+    <p class="text-slate-500 dark:text-slate-400 text-[12.5px] mt-2 mb-5">Comparativo de atingimento de meta entre as carteiras 72–83.</p>
+    <div class="card p-4 mb-4 flex flex-wrap gap-3 items-end">
+      <div>
+        <label class="block mb-1">Indicador</label>
+        <select id="rank-indicador" onchange="renderRankingBody()">${INDICATORS.map(i=>`<option value="${i.key}">${i.label}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="grid lg:grid-cols-3 gap-4 mb-6">
+      <div class="card p-4 lg:col-span-2">
+        <div class="h-96"><canvas id="chart-rank"></canvas></div>
+      </div>
+      <div class="card p-0 overflow-hidden">
+        <table class="w-full text-[12.5px]">
+          <thead class="bg-navy text-white"><tr><th class="p-2 text-left">#</th><th class="p-2 text-left">Carteira</th><th class="p-2 text-right">% Meta</th></tr></thead>
+          <tbody id="rank-table"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card p-0 overflow-hidden">
+      <div class="p-4 font-bold text-navy dark:text-white text-sm">Visão geral — todas as carteiras e todas as metas (% atingido)</div>
+      <div class="scrollx">
+        <table class="w-full text-[12px]">
+          <thead class="bg-navy text-white">
+            <tr><th class="p-2 text-left sticky left-0 bg-navy">Carteira</th>${INDICATORS.map(i=>`<th class="p-2 text-right">${i.label}</th>`).join('')}</tr>
+          </thead>
+          <tbody id="rank-matrix-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+  renderRankingBody();
+}
+function renderRankingBody(){
+  const indKey = document.getElementById('rank-indicador').value;
+  const ind = indicatorByKey(indKey);
+  const rows = CARTEIRAS.map(c=>{
+    const atual = currentIndicatorValue(c, indKey);
+    const metaVal = indicatorMetaTotal(c, indKey);
+    const pct = metaVal ? Math.round((atual/metaVal)*1000)/10 : 0;
+    return { carteira:c, atual, metaVal, pct };
+  }).sort((a,b)=>b.pct-a.pct);
+
+  destroyChart('rank');
+  const ctx = document.getElementById('chart-rank');
+  charts.rank = new Chart(ctx, { type:'bar', data:{ labels:rows.map(r=>'Cart. '+r.carteira), datasets:[{ label:'% da meta', data:rows.map(r=>r.pct), backgroundColor: rows.map(r=> r.pct>=100?'#1E7A46': r.pct>=60?'#C98A1E':'#B3261E'), borderRadius:6 }] },
+    options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{ ticks:{color:chartTextColor()}, grid:{color:chartGridColor()} }, y:{ ticks:{color:chartTextColor()}, grid:{display:false} } } } });
+
+  document.getElementById('rank-table').innerHTML = rows.map((r,idx)=>`
+    <tr class="row-hover border-t border-slate-100 dark:border-slate-800">
+      <td class="p-2 font-bold ${idx===0?'text-accent':''}">${idx+1}º</td>
+      <td class="p-2">Carteira ${r.carteira}</td>
+      <td class="p-2 text-right font-semibold">${r.pct}%</td>
+    </tr>`).join('');
+
+  renderRankMatrix();
+}
+function pctCellColor(pct){
+  if(pct>=100) return 'background:#E7F5EC;color:#1E7A46';
+  if(pct>=60) return 'background:#FBF3E3;color:#8A6D0B';
+  return 'background:#FBEAEA;color:#B3261E';
+}
+function renderRankMatrix(){
+  const el = document.getElementById('rank-matrix-table');
+  if(!el) return;
+  el.innerHTML = CARTEIRAS.map(c=>{
+    const cells = INDICATORS.map(ind=>{
+      const atual = currentIndicatorValue(c, ind.key);
+      const metaVal = indicatorMetaTotal(c, ind.key);
+      const pct = metaVal ? Math.round((atual/metaVal)*1000)/10 : null;
+      return `<td class="p-2 text-right"><span class="badge" style="${pct===null?'background:#EEF1F5;color:#8A94A6':pctCellColor(pct)}">${pct===null?'sem meta':pct+'%'}</span></td>`;
+    }).join('');
+    return `<tr class="row-hover border-t border-slate-100 dark:border-slate-800"><td class="p-2 font-semibold sticky left-0 bg-white dark:bg-[#111B30]">Carteira ${c}</td>${cells}</tr>`;
+  }).join('');
+}
+
+/* ======================================================================
+   VIEW: COMPARATIVO POR PERÍODO
+====================================================================== */
+function renderComparativo(){
+  const root = document.getElementById('view-root');
+  const hoje = new Date();
+  const inicioMesAtual = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().slice(0,10);
+  const inicioMesAnterior = new Date(hoje.getFullYear(), hoje.getMonth()-1, 1).toISOString().slice(0,10);
+  const fimMesAnterior = new Date(hoje.getFullYear(), hoje.getMonth(), 0).toISOString().slice(0,10);
+  root.innerHTML = `
+  <div class="fade-in">
+    <h1 class="text-xl font-bold text-navy dark:text-white accent-underline inline-block mb-1">Comparativo por Período</h1>
+    <p class="text-slate-500 dark:text-slate-400 text-[12.5px] mt-2 mb-5">Compare a produção entre dois períodos.</p>
+    <div class="card p-4 mb-4 grid md:grid-cols-5 gap-3 items-end">
+      <div><label>Indicador</label><select id="cmp-indicador" onchange="renderComparativoBody()">${INDICATORS.map(i=>`<option value="${i.key}">${i.label}</option>`).join('')}</select></div>
+      <div><label>Período A — de</label><input type="date" id="cmp-a-de" value="${inicioMesAnterior}" onchange="renderComparativoBody()"></div>
+      <div><label>Período A — até</label><input type="date" id="cmp-a-ate" value="${fimMesAnterior}" onchange="renderComparativoBody()"></div>
+      <div><label>Período B — de</label><input type="date" id="cmp-b-de" value="${inicioMesAtual}" onchange="renderComparativoBody()"></div>
+      <div><label>Período B — até</label><input type="date" id="cmp-b-ate" value="${todayStr()}" onchange="renderComparativoBody()"></div>
+    </div>
+    <div class="card p-4 mb-4">
+      <div class="h-72"><canvas id="chart-cmp"></canvas></div>
+    </div>
+    <div class="card p-0 overflow-hidden scrollx">
+      <table class="w-full text-[12.5px]">
+        <thead class="bg-navy text-white"><tr><th class="p-2 text-left">Carteira</th><th class="p-2 text-right">Período A</th><th class="p-2 text-right">Período B</th><th class="p-2 text-right">Variação</th></tr></thead>
+        <tbody id="cmp-table"></tbody>
+      </table>
+    </div>
+  </div>`;
+  renderComparativoBody();
+}
+function renderComparativoBody(){
+  const indKey = document.getElementById('cmp-indicador').value;
+  const ind = indicatorByKey(indKey);
+  const aDe = document.getElementById('cmp-a-de').value, aAte = document.getElementById('cmp-a-ate').value;
+  const bDe = document.getElementById('cmp-b-de').value, bAte = document.getElementById('cmp-b-ate').value;
+
+  const rows = scopeCarteiras().map(c=>{
+    const a = indicatorValueOnOrBefore(c, indKey, aAte); // valor absoluto no fim do período A
+    const b = indicatorValueOnOrBefore(c, indKey, bAte);
+    return { carteira:c, a, b, delta:b-a };
+  });
+
+  destroyChart('cmp');
+  const ctx = document.getElementById('chart-cmp');
+  charts.cmp = new Chart(ctx, { type:'bar', data:{ labels: rows.map(r=>'Cart. '+r.carteira), datasets:[
+      { label:'Período A', data: rows.map(r=>r.a), backgroundColor:'#8FA6C7', borderRadius:5 },
+      { label:'Período B', data: rows.map(r=>r.b), backgroundColor:'#1E5FD9', borderRadius:5 },
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{color:chartTextColor()} } }, scales:{ x:{ ticks:{color:chartTextColor(), font:{size:10}}, grid:{display:false} }, y:{ ticks:{color:chartTextColor()}, grid:{color:chartGridColor()} } } } });
+
+  document.getElementById('cmp-table').innerHTML = rows.map(r=>`
+    <tr class="row-hover border-t border-slate-100 dark:border-slate-800">
+      <td class="p-2">Carteira ${r.carteira}</td>
+      <td class="p-2 text-right">${fmtVal(r.a, ind.unit)}</td>
+      <td class="p-2 text-right">${fmtVal(r.b, ind.unit)}</td>
+      <td class="p-2 text-right font-semibold" style="color:${r.delta>=0?'#1E7A46':'#B3261E'}">${r.delta>=0?'+':''}${fmtVal(r.delta, ind.unit)}</td>
+    </tr>`).join('');
+}
+
+/* ======================================================================
+   VIEW: TABELA DINÂMICA
+====================================================================== */
+function renderTabela(){
+  const root = document.getElementById('view-root');
+  tableFilters.carteiras = []; tableFilters.indicadores = []; tableFilters.de=''; tableFilters.ate=''; tablePage=1;
+  root.innerHTML = `
+  <div class="fade-in">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <h1 class="text-xl font-bold text-navy dark:text-white accent-underline inline-block">Tabela Dinâmica de Produção</h1>
+      <div class="flex gap-2">
+        <button onclick="exportTableExcel()" class="px-3 py-2 rounded-lg btn-navy text-xs font-semibold">${icon('download')} Excel</button>
+        <button onclick="exportTablePDF()" class="px-3 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-xs font-semibold">${icon('download')} PDF</button>
+      </div>
+    </div>
+    <div class="card p-4 mb-4">
+      <div class="grid md:grid-cols-4 gap-3 mb-3">
+        <div>
+          <label>Carteiras</label>
+          <select id="tf-carteiras" multiple size="4" onchange="onTableFilterChange()" class="!py-1">
+            ${session.perfil==='gerente' ? CARTEIRAS.map(c=>`<option value="${c}">Carteira ${c}</option>`).join('') : `<option value="${session.carteira}" selected>Carteira ${session.carteira}</option>`}
+          </select>
+          <div class="text-[10.5px] text-slate-400 mt-1">Ctrl/Cmd + clique para selecionar várias</div>
+        </div>
+        <div>
+          <label>Indicadores</label>
+          <select id="tf-indicadores" multiple size="4" onchange="onTableFilterChange()" class="!py-1">
+            ${INDICATORS.map(i=>`<option value="${i.key}">${i.label}</option>`).join('')}
+          </select>
+          <div class="text-[10.5px] text-slate-400 mt-1">Ctrl/Cmd + clique para selecionar várias</div>
+        </div>
+        <div><label>De</label><input type="date" id="tf-de" onchange="onTableFilterChange()"></div>
+        <div><label>Até</label><input type="date" id="tf-ate" onchange="onTableFilterChange()"></div>
+      </div>
+      <input type="text" id="tf-busca" placeholder="Busca rápida (carteira, indicador, usuário...)" oninput="onTableFilterChange()">
+    </div>
+    <div class="card p-0 overflow-hidden">
+      <div class="scrollx">
+        <table class="w-full text-[12.5px] data-table">
+          <thead class="bg-navy text-white">
+            <tr>
+              <th class="p-2 text-left cursor-pointer" onclick="sortTable('data')">Data ⇅</th>
+              <th class="p-2 text-left cursor-pointer" onclick="sortTable('carteira')">Carteira ⇅</th>
+              <th class="p-2 text-left cursor-pointer" onclick="sortTable('indicador')">Indicador ⇅</th>
+              <th class="p-2 text-left">Sub-item</th>
+              <th class="p-2 text-right cursor-pointer" onclick="sortTable('valor')">Valor ⇅</th>
+              <th class="p-2 text-left">Atualizado por</th>
+              <th class="p-2 text-left">Atualizado em</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+      <div id="table-pagination" class="flex items-center justify-between p-3 text-[12px]"></div>
+    </div>
+  </div>`;
+  renderTabelaBody();
+}
+function onTableFilterChange(){
+  tableFilters.carteiras = Array.from(document.getElementById('tf-carteiras').selectedOptions).map(o=>o.value);
+  tableFilters.indicadores = Array.from(document.getElementById('tf-indicadores').selectedOptions).map(o=>o.value);
+  tableFilters.de = document.getElementById('tf-de').value;
+  tableFilters.ate = document.getElementById('tf-ate').value;
+  tableFilters.busca = document.getElementById('tf-busca').value.toLowerCase();
+  tablePage = 1;
+  renderTabelaBody();
+}
+function sortTable(col){
+  if(tableSort.col===col) tableSort.dir = tableSort.dir==='asc'?'desc':'asc'; else { tableSort.col=col; tableSort.dir='asc'; }
+  renderTabelaBody();
+}
+function filteredProducao(){
+  const allowedCarteiras = session.perfil==='gerente' ? CARTEIRAS.map(String) : [String(session.carteira)];
+  return DB.producao.filter(r=>{
+    if(!allowedCarteiras.includes(String(r.carteira))) return false;
+    if(tableFilters.carteiras.length && !tableFilters.carteiras.includes(String(r.carteira))) return false;
+    if(tableFilters.indicadores.length && !tableFilters.indicadores.includes(r.indicador)) return false;
+    if(tableFilters.de && r.data < tableFilters.de) return false;
+    if(tableFilters.ate && r.data > tableFilters.ate) return false;
+    if(tableFilters.busca){
+      const ind = indicatorByKey(r.indicador);
+      const hay = [r.data, r.carteira, ind?ind.label:r.indicador, r.sub, r.valor, r.atualizadoPor].join(' ').toLowerCase();
+      if(!hay.includes(tableFilters.busca)) return false;
+    }
+    return true;
+  });
+}
+function renderTabelaBody(){
+  let rows = filteredProducao();
+  rows.sort((a,b)=>{
+    let va=a[tableSort.col], vb=b[tableSort.col];
+    if(tableSort.col==='valor'){ va=Number(va); vb=Number(vb); }
+    if(va<vb) return tableSort.dir==='asc'?-1:1;
+    if(va>vb) return tableSort.dir==='asc'?1:-1;
+    return 0;
+  });
+  const totalPages = Math.max(1, Math.ceil(rows.length / tablePageSize));
+  tablePage = Math.min(tablePage, totalPages);
+  const start = (tablePage-1)*tablePageSize;
+  const pageRows = rows.slice(start, start+tablePageSize);
+
+  document.getElementById('table-body').innerHTML = pageRows.map(r=>{
+    const ind = indicatorByKey(r.indicador);
+    const subLabel = r.sub && ind && ind.subItems ? (ind.subItems.find(s=>s.key===r.sub)||{}).label : '—';
+    return `<tr class="row-hover border-t border-slate-100 dark:border-slate-800">
+      <td class="p-2">${fmtDateBR(r.data)}</td>
+      <td class="p-2">Carteira ${r.carteira}</td>
+      <td class="p-2">${ind?ind.label:r.indicador}</td>
+      <td class="p-2">${subLabel||'—'}</td>
+      <td class="p-2 text-right font-semibold ${Number(r.valor)<0?'text-red-600':''}">${fmtVal(r.valor, ind?ind.unit:'')}</td>
+      <td class="p-2">${r.atualizadoPor||'—'}</td>
+      <td class="p-2">${r.atualizadoEm ? new Date(r.atualizadoEm).toLocaleString('pt-BR') : '—'}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="7" class="p-6 text-center text-slate-400">Nenhum registro encontrado para os filtros aplicados.</td></tr>`;
+
+  document.getElementById('table-pagination').innerHTML = `
+    <div>Mostrando ${rows.length? start+1:0}–${Math.min(start+tablePageSize, rows.length)} de ${rows.length} registros</div>
+    <div class="flex items-center gap-2">
+      <select onchange="changePageSize(this.value)" class="!w-auto !py-1">
+        <option value="15" ${tablePageSize===15?'selected':''}>15/página</option>
+        <option value="25" ${tablePageSize===25?'selected':''}>25/página</option>
+        <option value="50" ${tablePageSize===50?'selected':''}>50/página</option>
+        <option value="100" ${tablePageSize===100?'selected':''}>100/página</option>
+      </select>
+      <button onclick="changePage(-1)" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700">‹</button>
+      <span>${tablePage} / ${totalPages}</span>
+      <button onclick="changePage(1)" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700">›</button>
+    </div>`;
+}
+function changePage(delta){ tablePage += delta; renderTabelaBody(); }
+function changePageSize(v){ tablePageSize = Number(v); tablePage = 1; renderTabelaBody(); }
+
+function exportTableExcel(){
+  const rows = filteredProducao().map(r=>{
+    const ind = indicatorByKey(r.indicador);
+    return { Data:fmtDateBR(r.data), Carteira:r.carteira, Indicador: ind?ind.label:r.indicador, SubItem:r.sub||'', Valor:r.valor, AtualizadoPor:r.atualizadoPor, AtualizadoEm:r.atualizadoEm };
+  });
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Producao');
+  XLSX.writeFile(wb, 'Producao_AGPersonnalite_'+todayStr()+'.xlsx');
+}
+function exportTablePDF(){
+  const table = document.querySelector('#view-root table');
+  toast('Gerando PDF da tabela...', 'navy');
+  html2canvas(table, { backgroundColor: document.documentElement.classList.contains('dark') ? '#111B30' : '#fff', scale:2 }).then(canvas=>{
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('l','mm','a4');
+    const pageW = pdf.internal.pageSize.getWidth();
+    const imgH = canvas.height * pageW / canvas.width;
+    pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,pageW,imgH);
+    pdf.save('Tabela_Producao_AGPersonnalite_'+todayStr()+'.pdf');
+  });
+}
+
+/* ======================================================================
+   VIEW: ADMINISTRAÇÃO (somente gerente)
+====================================================================== */
+function renderAdmin(){
+  if(session.perfil !== 'gerente'){ navigateTo('dashboard'); return; }
+  const root = document.getElementById('view-root');
+  root.innerHTML = `
+  <div class="fade-in">
+    <h1 class="text-xl font-bold text-navy dark:text-white accent-underline inline-block mb-5">Administração</h1>
+
+    <div class="grid lg:grid-cols-2 gap-4 mb-6">
+      <div class="card p-4">
+        <div class="font-bold text-navy dark:text-white mb-3 text-sm flex items-center gap-2">${icon('user-plus')} Cadastrar novo usuário</div>
+        <div class="space-y-2">
+          <div><label>Nome</label><input type="text" id="new-nome" placeholder="Nome completo"></div>
+          <div><label>Usuário (login)</label><input type="text" id="new-usuario" placeholder="ex: joao.silva"></div>
+          <div><label>Senha temporária</label><input type="text" id="new-senha" placeholder="ex: mudar123"></div>
+          <div><label>Perfil</label>
+            <select id="new-perfil" onchange="toggleNewCarteira()">
+              <option value="colaborador">Colaborador</option>
+              <option value="gerente">Gerente Geral</option>
+            </select>
+          </div>
+          <div id="new-carteira-wrap"><label>Carteira</label>
+            <select id="new-carteira">${CARTEIRAS.map(c=>`<option value="${c}">Carteira ${c}</option>`).join('')}</select>
+          </div>
+          <button onclick="createUser()" class="w-full py-2 rounded-lg btn-accent font-semibold text-xs mt-2">Cadastrar usuário</button>
+        </div>
+      </div>
+
+      <div class="card p-4">
+        <div class="font-bold text-navy dark:text-white mb-3 text-sm flex items-center gap-2">${icon('folder')} Carteiras da agência</div>
+        <div class="flex flex-wrap gap-1.5 mb-3">
+          ${CARTEIRAS.map(c=>`<span class="badge" style="background:#EAF1F8;color:#2E5A8F">Cart. ${c}</span>`).join('')}
+        </div>
+        <label>Número da nova carteira</label>
+        <div class="flex gap-2">
+          <input type="number" id="new-carteira-numero" placeholder="ex: 84">
+          <button onclick="addCarteira()" class="px-3 py-2 rounded-lg btn-accent font-semibold text-xs whitespace-nowrap">Incluir</button>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-3">A nova carteira passa a aparecer em lançamentos, metas e relatórios. Cadastre um colaborador para ela ao lado.</p>
+        <div class="flex flex-wrap gap-2 mt-3">
+          <button onclick="forceSync(true)" class="px-3 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-xs font-semibold">${icon('refresh-cw')} Sincronizar agora</button>
+          <button onclick="downloadBackup()" class="px-3 py-2 rounded-lg bg-slate-200 dark:bg-slate-700 text-xs font-semibold">${icon('download')} Baixar backup Excel</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card p-0 overflow-hidden">
+      <div class="p-4 font-bold text-navy dark:text-white text-sm">Usuários cadastrados</div>
+      <div class="scrollx">
+        <table class="w-full text-[12.5px]">
+          <thead class="bg-navy text-white"><tr><th class="p-2 text-left">Nome</th><th class="p-2 text-left">Usuário</th><th class="p-2 text-left">Perfil</th><th class="p-2 text-left">Carteira</th><th class="p-2 text-left">Ações</th></tr></thead>
+          <tbody id="admin-users-table"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+  renderAdminUsersTable();
+}
+function toggleNewCarteira(){
+  document.getElementById('new-carteira-wrap').style.display = document.getElementById('new-perfil').value==='gerente' ? 'none' : 'block';
+}
+async function createUser(){
+  const nome = document.getElementById('new-nome').value.trim();
+  const usuario = document.getElementById('new-usuario').value.trim();
+  const senha = document.getElementById('new-senha').value;
+  const perfil = document.getElementById('new-perfil').value;
+  const carteira = perfil==='gerente' ? null : Number(document.getElementById('new-carteira').value);
+  if(!nome || !usuario || !senha){ toast('Preencha todos os campos.', 'red'); return; }
+  if(DB.profiles.some(u=>String(u.usuario).toLowerCase()===usuario.toLowerCase())){ toast('Já existe um usuário com esse login.', 'red'); return; }
+  const { data, error } = await sb.functions.invoke('admin-usuarios', { body: { action:'create_user', usuario, senha, nome, perfil, carteira } });
+  if(error || (data && data.error)){ toast('Erro: ' + (data?.error || error.message), 'red'); return; }
+  await loadAllData();
+  toast('Usuário cadastrado com sucesso.', 'green');
+  renderAdmin();
+}
+let editingUserId = null;
+function startEditUser(usuario){ editingUserId = usuario; renderAdminUsersTable(); }
+function cancelEditUser(){ editingUserId = null; renderAdminUsersTable(); }
+function renderAdminUsersTable(){
+  document.getElementById('admin-users-table').innerHTML = DB.profiles.map(u=>{
+    if(editingUserId === u.usuario){
+      return `<tr class="border-t border-slate-100 dark:border-slate-800" style="background:rgba(30,95,217,0.06)">
+        <td class="p-2"><input type="text" id="edit-nome-${u.usuario}" value="${u.nome}" class="!py-1"></td>
+        <td class="p-2 text-slate-400">${u.usuario}</td>
+        <td class="p-2">
+          <select id="edit-perfil-${u.usuario}" class="!py-1">
+            <option value="colaborador" ${u.perfil==='colaborador'?'selected':''}>Colaborador</option>
+            <option value="gerente" ${u.perfil==='gerente'?'selected':''}>Gerente Geral</option>
+          </select>
+        </td>
+        <td class="p-2">
+          <select id="edit-carteira-${u.usuario}" class="!py-1">
+            ${CARTEIRAS.map(c=>`<option value="${c}" ${Number(u.carteira)===c?'selected':''}>Carteira ${c}</option>`).join('')}
+          </select>
+        </td>
+        <td class="p-2 flex gap-2 flex-wrap">
+          <button onclick="saveEditUser('${u.usuario}')" class="px-2 py-1 rounded btn-accent text-[11px] font-semibold">Salvar</button>
+          <button onclick="cancelEditUser()" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 text-[11px]">Cancelar</button>
+        </td>
+      </tr>`;
+    }
+    return `<tr class="row-hover border-t border-slate-100 dark:border-slate-800">
+      <td class="p-2">${u.nome}</td>
+      <td class="p-2">${u.usuario}</td>
+      <td class="p-2"><span class="badge" style="background:${u.perfil==='gerente'?'#DCE9FB':'#EAF1F8'};color:${u.perfil==='gerente'?'#0F355F':'#2E5A8F'}">${u.perfil}</span></td>
+      <td class="p-2">${u.carteira || '—'}</td>
+      <td class="p-2 flex gap-2 flex-wrap">
+        <button onclick="startEditUser('${u.usuario}')" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 text-[11px]">Editar</button>
+        <button onclick="resetPassword('${u.usuario}')" class="px-2 py-1 rounded bg-slate-200 dark:bg-slate-700 text-[11px]">Resetar senha</button>
+        <button onclick="deleteUser('${u.usuario}')" class="px-2 py-1 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-[11px] font-semibold">Excluir</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+async function saveEditUser(usuario){
+  const u = DB.profiles.find(x=>x.usuario===usuario);
+  const nome = document.getElementById('edit-nome-'+usuario).value.trim();
+  const perfil = document.getElementById('edit-perfil-'+usuario).value;
+  const carteira = perfil==='gerente' ? null : Number(document.getElementById('edit-carteira-'+usuario).value);
+  if(!nome){ toast('Informe o nome.', 'red'); return; }
+  if(u.perfil==='gerente' && perfil!=='gerente' && DB.profiles.filter(x=>x.perfil==='gerente').length<=1){
+    toast('Não é possível rebaixar o único usuário gerente geral.', 'red'); return;
+  }
+  const { error } = await sb.from('profiles').update({ nome, perfil, carteira, atualizado_em: nowIso() }).eq('usuario', usuario);
+  if(error){ toast('Erro ao atualizar: ' + error.message, 'red'); return; }
+  editingUserId = null;
+  await loadAllData();
+  toast('Usuário atualizado com sucesso.', 'green');
+  renderAdmin();
+}
+async function deleteUser(usuario){
+  if(usuario === session.usuario){ toast('Você não pode excluir o usuário com o qual está logado.', 'red'); return; }
+  const u = DB.profiles.find(x=>x.usuario===usuario);
+  if(!u) return;
+  if(u.perfil==='gerente' && DB.profiles.filter(x=>x.perfil==='gerente').length<=1){
+    toast('Não é possível excluir o único usuário gerente geral.', 'red'); return;
+  }
+  if(!confirm('Excluir o usuário "'+usuario+'" ('+u.nome+')? Esta ação não pode ser desfeita.')) return;
+  const { data, error } = await sb.functions.invoke('admin-usuarios', { body: { action:'delete_user', usuario } });
+  if(error || (data && data.error)){ toast('Erro: ' + (data?.error || error.message), 'red'); return; }
+  await loadAllData();
+  toast('Usuário excluído.', 'green');
+  renderAdmin();
+}
+async function resetPassword(usuario){
+  const nova = prompt('Nova senha temporária para "'+usuario+'":', 'mudar123');
+  if(nova===null) return;
+  const { data, error } = await sb.functions.invoke('admin-usuarios', { body: { action:'reset_password', usuario, nova_senha: nova } });
+  if(error || (data && data.error)){ toast('Erro: ' + (data?.error || error.message), 'red'); return; }
+  toast('Senha redefinida para '+usuario+'.', 'green');
+}
+function downloadBackup(){
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(DB.profiles.map(u=>({usuario:u.usuario, nome:u.nome, perfil:u.perfil, carteira:u.carteira}))), 'Usuarios');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(DB.metas), 'Metas');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(DB.producao), 'Producao');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(CARTEIRAS.map(c=>({numero:c}))), 'Carteiras');
+  XLSX.writeFile(wb, 'Backup_AGPersonnalite_'+todayStr()+'.xlsx');
+}
+async function addCarteira(){
+  const el = document.getElementById('new-carteira-numero');
+  const num = Number(el.value);
+  if(!num || num<=0){ toast('Informe um número de carteira válido.', 'red'); return; }
+  if(CARTEIRAS.includes(num)){ toast('Essa carteira já existe.', 'red'); return; }
+  const { error } = await sb.from('carteiras').insert({ numero: num });
+  if(error){ toast('Erro ao incluir carteira: ' + error.message, 'red'); return; }
+  await loadAllData();
+  toast('Carteira '+num+' incluída com sucesso.', 'green');
+  el.value = '';
+  renderAdmin();
+}
+
+/* ======================================================================
+   VIEW: MINHA CONTA
+====================================================================== */
+function renderConta(){
+  const root = document.getElementById('view-root');
+  root.innerHTML = `
+  <div class="fade-in max-w-md">
+    <h1 class="text-xl font-bold text-navy dark:text-white accent-underline inline-block mb-5">Minha Conta</h1>
+    <div class="card p-5">
+      <div class="mb-4">
+        <div class="text-[12px] text-slate-400">Usuário</div>
+        <div class="font-semibold text-navy dark:text-white">${session.nome} (${session.usuario})</div>
+      </div>
+      <label>Nova senha</label>
+      <input type="password" id="conta-senha-nova" placeholder="Nova senha">
+      <label class="block mt-3">Confirmar nova senha</label>
+      <input type="password" id="conta-senha-confirma" placeholder="Confirme a nova senha">
+      <div id="conta-debug" class="text-[11px] text-slate-400 mt-2"></div>
+      <button onclick="changePassword()" id="btn-salvar-senha" class="w-full py-2.5 rounded-lg btn-accent font-bold mt-4">Salvar nova senha</button>
+    </div>
+  </div>`;
+}
+async function changePassword(){
+  const nova = document.getElementById('conta-senha-nova').value;
+  const confirma = document.getElementById('conta-senha-confirma').value;
+  const debugBox = document.getElementById('conta-debug');
+  if(!nova || nova.length < 4){ toast('A nova senha deve ter pelo menos 4 caracteres.', 'red'); return; }
+  if(nova !== confirma){ toast('As senhas não coincidem.', 'red'); return; }
+  const btn = document.getElementById('btn-salvar-senha');
+  if(btn){ btn.disabled = true; btn.textContent = 'Salvando...'; }
+  if(debugBox) debugBox.textContent = 'Enviando...';
+  try{
+    const { error } = await sb.auth.updateUser({ password: nova });
+    if(error){ toast('Erro ao trocar senha: ' + error.message, 'red'); if(debugBox) debugBox.textContent = 'Erro: ' + error.message; return; }
+    const { error: profErr } = await sb.from('profiles').update({ precisa_trocar_senha:false, atualizado_em: nowIso() }).eq('id', session.id);
+    if(profErr){ toast('Senha trocada, mas houve um erro ao atualizar o perfil: ' + profErr.message, 'amber'); }
+    else { toast('Senha alterada com sucesso!', 'green'); }
+    if(debugBox) debugBox.textContent = 'Concluído.';
+    setTimeout(()=> navigateTo('dashboard'), 900);
+  }catch(e){
+    console.error(e);
+    const msg = (e && e.message) ? e.message : String(e);
+    toast('Erro inesperado ao trocar senha: ' + msg, 'red');
+    if(debugBox) debugBox.textContent = 'Erro inesperado: ' + msg;
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = 'Salvar nova senha'; }
+  }
+}
+
+
+/* ======================================================================
+   INIT
+====================================================================== */
+function initStaticIcons(){
+  document.getElementById('btn-hamburger').innerHTML = icon('menu', 'w-5 h-5');
+  document.getElementById('dark-toggle-btn').innerHTML = icon(document.documentElement.classList.contains('dark') ? 'sun' : 'moon', 'w-4 h-4');
+  document.getElementById('user-menu-caret').innerHTML = icon('chevron-down', 'w-3 h-3');
+  document.getElementById('menu-item-conta').innerHTML = icon('key','w-4 h-4') + ' Minha conta / senha';
+  document.getElementById('menu-item-sync').innerHTML = icon('refresh-cw','w-4 h-4') + ' Sincronizar agora';
+  document.getElementById('menu-item-logout').innerHTML = icon('log-out','w-4 h-4') + ' Sair';
+}
+window.addEventListener('DOMContentLoaded', ()=>{
+  initStaticIcons();
+  tryRestoreSession();
+});
+</script>
+</body>
+</html>
